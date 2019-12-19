@@ -1,0 +1,9 @@
+{
+  "<ID>": {
+      "data": [<TSTART>, <TEND>, <COEFF>],
+      "t_trigger": <TTRIGGER>
+        }
+}
+
+
+

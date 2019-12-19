@@ -1,0 +1,46 @@
+{
+  "SG_SIMULATION_CONFIG": {
+    "TYPE_DR_SIMU": "GT",
+    "ARCHITECTURE_CENTRALIZED": false,
+    "USE_BLOCKCHAIN": false
+  },
+  "SIMULATION_PARAMETERS": {
+    "STARTING_DATE": 0,
+    "TIME_STEP": 900,
+    "DURATION": 172800,
+    "PLANNING_FREQUENCY": 86400
+  },
+
+  "GRID_MANAGER_CONFIG": {"NB": 0},
+  "DER_CONFIG": {"NB": 1},
+  "SB_CONFIG": {"NB": 3},
+
+  "INSTANCES":
+  {
+    "BUILT_IN": {
+      "MGM": 0,
+      "DER": 1,
+      "SB": 2
+    },
+    "EXTERNAL": [
+      {
+        "NB": 1,
+        "param": {"unit": 11},
+        "path": "../../Elab-SB-Simulator/", "module": "run_sg_link", "function_process": "spawn_smartbuilding_as_sg_entity"
+      }
+    ]
+  },
+
+  "ZMQ_CONFIG": {
+    "SIMU_IP": "127.0.0.1",
+    "BROADCAST_ID": 9999,
+    "GROUP_SB_ID": 9998,
+    "GROUP_DER_ID": 9997,
+    "GROUP_MGM_ID": 9996,
+    "SG_COORD_PUB": "3000",
+    "SG_ENTITY_PUB": "3001",
+    "MICROGRID_MANAGER_ID": 0,
+    "SB_FIRST_ID": 1,
+    "DER_FIRST_ID": 1000
+  }
+}

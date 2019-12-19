@@ -1,0 +1,511 @@
+<html>
+<head>
+<link rel="stylesheet" type="text/css" href="style.css">
+<script src="http://code.jquery.com/jquery-1.5.min.js"></script>
+<script src="https://canvasjs.com/assets/script/jquery.canvasjs.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+</head>
+
+<body>
+<h1>Demand Response simulation platform</h1>
+
+<div id="sg_entities_connexion"></div>
+<script>
+var txt_connection_off = "Waiting for Smart-Grid Entities to connect ...";
+$("#sg_entities_connexion").text(txt_connection_off);
+$("#sg_entities_connexion").css('color', 'red');
+</script>
+
+<input type="button" value="Start the simulation" id="start_simu" disabled/>
+<input type="button" value="Stop the simulation" id="stop_simu" disabled/><br />
+
+<div id="day_ahead_chart" class="griddata_chart smaller_chart"></div>
+
+<div id="aggregated_chart" class="griddata_chart smaller_chart"></div>
+
+<div id="rt_power_chart" class="griddata_chart smaller_chart"></div>
+
+<h4>Log sniffer</h4>
+<div class="log" id="main_log">
+</div>
+
+<script>
+// The starting timestamp
+var starting_timestamp = new Date(2017, 6).getTime();
+
+// The total amount of SB
+var nb_sb = <%- JSON.stringify(nb_sb) %>
+var nb_der = <%- JSON.stringify(nb_der) %>
+var nb_mgm = <%- JSON.stringify(nb_mgm) %>
+
+sb_list = []; // Store the list of SB nodes
+der_list = []; // Store the list of SB nodes
+mgm_list = []; // Store the list of SB nodes
+</script>
+
+<script type="text/javascript">
+
+// --- The graphs for RT data
+var data_rt_timeseries_chart = [];
+var data_pp_timeseries_chart = [];
+var data_aggr_timeseries_chart = [];
+
+// Power and prices data points
+var dataSeries_rt_data = {"der": {}, "sb": {}, "mgm": {}};  // push dataSeries here
+var dataSeries_pp_data = {"der": {}, "sb": {}, "mgm": {}};  // push dataSeries here
+var dataSeries_agg_data = {"der_rt": [], "sb_rt": [], "der_pp": [], "sb_pp": []};  // push dataSeries here
+
+var init_data_charts = function() {
+
+  // SBs
+  for (var id_sb_idx in sb_list) {
+    let id_sb = sb_list[id_sb_idx];
+
+    // RT
+    dataSeries_rt_data["sb"][id_sb] = [];
+    let chart_sb_rt = {
+      type: "line",
+      axisXIndex: 0,
+      yValueFormatString: "###.00W",
+      xValueFormatString: "hh:mm:ss TT",
+      showInLegend: true,
+      name: "SB"+id_sb,
+      dataPoints: dataSeries_rt_data["sb"][id_sb]
+    };
+    data_rt_timeseries_chart.push(chart_sb_rt);
+
+    // PP
+    dataSeries_pp_data["sb"][id_sb] = [];
+    let chart_sb_pp = {
+      type: "line",
+      lineDashType: "dash",
+      xValueType: "dateTime",
+      yValueFormatString: "###.00W",
+      xValueFormatString: "hh:mm:ss TT",
+      showInLegend: true,
+      name: "SB"+id_sb,
+      dataPoints: dataSeries_pp_data["sb"][id_sb]
+    };
+    data_pp_timeseries_chart.push(chart_sb_pp);
+  }
+
+  // DERs
+  for (var id_der_idx in der_list) {
+    let id_der = der_list[id_der_idx];
+
+    // RT
+    dataSeries_rt_data["der"][id_der] = [];
+    let chart_der_rt = {
+      type: "line",
+      xValueType: "dateTime",
+      axisXIndex: 0,
+      yValueFormatString: "###.00W",
+      xValueFormatString: "hh:mm:ss TT",
+      showInLegend: true,
+      name: "RES"+id_der,
+      dataPoints: dataSeries_rt_data["der"][id_der]
+    };
+    data_rt_timeseries_chart.push(chart_der_rt);
+
+    // PP
+    dataSeries_pp_data["der"][id_der] = [];
+    let chart_der_pp = {
+      type: "line",
+      lineDashType: "dash",
+      xValueType: "dateTime",
+      axisXIndex: 0,
+      yValueFormatString: "###.00W",
+      xValueFormatString: "hh:mm:ss TT",
+      showInLegend: true,
+      name: "RES"+id_der,
+      dataPoints: dataSeries_pp_data["der"][id_der]
+    };
+    data_pp_timeseries_chart.push(chart_der_pp);
+  }
+
+  // MGM
+  for (var id_mgm_idx in mgm_list) {
+    let id_mgm = mgm_list[id_mgm_idx];
+
+    // RT
+    dataSeries_rt_data["mgm"][id_mgm] = [];
+    let chart_mgm_rt = {
+      type: "line",
+      xValueType: "dateTime",
+      axisYIndex: 1,
+      yValueFormatString: "###.00$/kWh",
+      xValueFormatString: "hh:mm:ss TT",
+      showInLegend: true,
+      name: "Energy Price",
+      dataPoints: dataSeries_rt_data["mgm"][id_mgm]
+    };
+    data_rt_timeseries_chart.push(chart_mgm_rt);
+
+    // RT
+    dataSeries_pp_data["mgm"][id_mgm] = [];
+    let chart_mgm_pp = {
+      type: "line",
+      lineDashType: "dash",
+      xValueType: "dateTime",
+      axisYIndex: 1,
+      yValueFormatString: "###.00$/kWh",
+      xValueFormatString: "hh:mm:ss TT",
+      showInLegend: true,
+      name: "Energy Price",
+      dataPoints: dataSeries_pp_data["mgm"][id_mgm]
+    };
+    data_pp_timeseries_chart.push(chart_mgm_pp);
+  }
+
+  // Aggreagated data: RT and forecast
+  let chart_aggr_act_sb = {
+    type: "line",
+    xValueType: "dateTime",
+    axisXIndex: 0,
+    yValueFormatString: "###.00W",
+    xValueFormatString: "hh:mm:ss TT",
+    showInLegend: true,
+    name: "Actual Load",
+    dataPoints: dataSeries_agg_data["sb_rt"]
+  };
+  let chart_aggr_act_der = {
+    type: "line",
+    xValueType: "dateTime",
+    axisXIndex: 0,
+    yValueFormatString: "###.00W",
+    xValueFormatString: "hh:mm:ss TT",
+    showInLegend: true,
+    name: "Actual Generation",
+    dataPoints: dataSeries_agg_data["der_rt"]
+  };
+  let chart_aggr_fore_sb = {
+    type: "line",
+    lineDashType: "dash",
+    xValueType: "dateTime",
+    axisXIndex: 0,
+    yValueFormatString: "###.00W",
+    xValueFormatString: "hh:mm:ss TT",
+    showInLegend: true,
+    name: "Forecast Load",
+    dataPoints: dataSeries_agg_data["sb_pp"]
+  };
+  let chart_aggr_fore_der = {
+    type: "line",
+    lineDashType: "dash",
+    xValueType: "dateTime",
+    axisXIndex: 0,
+    yValueFormatString: "###.00W",
+    xValueFormatString: "hh:mm:ss TT",
+    showInLegend: true,
+    name: "Forecast Generation",
+    dataPoints: dataSeries_agg_data["der_pp"]
+  };
+  data_aggr_timeseries_chart.push(chart_aggr_act_sb);
+  data_aggr_timeseries_chart.push(chart_aggr_act_der);
+  data_aggr_timeseries_chart.push(chart_aggr_fore_sb);
+  data_aggr_timeseries_chart.push(chart_aggr_fore_der);
+}
+
+var options = {
+	title: {
+    text: "Smart-Grid Real-Time Power"
+	},
+	axisX: {
+		title: "Simulation time"
+	},
+	axisY: [{
+    title: "Power",
+		suffix: "W",
+		includeZero: false
+	},
+  {
+    title: "Price",
+    suffix: "$/kWh",
+    includeZero: false
+  }],
+	toolTip: {
+		shared: true
+	},
+	legend: {
+		cursor: "pointer",
+		fontColor: "dimGrey"
+	},
+	data: data_rt_timeseries_chart
+};
+
+$("#rt_power_chart").CanvasJSChart(options);
+</script>
+
+
+<script type="text/javascript">
+
+var options = {
+	title: {
+		text: "Smart-Building Planning forecast: details"
+	},
+	axisX: {
+		title: "Simulation time"
+	},
+  axisY: [{
+    title: "Power",
+		suffix: "W",
+		includeZero: false
+	},
+  {
+    title: "Price",
+    suffix: "$/kWh",
+    includeZero: false
+  }],
+	toolTip: {
+		shared: true
+	},
+	legend: {
+		cursor: "pointer",
+		fontColor: "dimGrey"
+	},
+	data: data_pp_timeseries_chart
+};
+
+$("#day_ahead_chart").CanvasJSChart(options);
+</script>
+
+<script type="text/javascript">
+
+var options_aggr = {
+	title: {
+		text: "Aggregated grid data"
+	},
+	axisX: {
+		title: "Simulation time"
+	},
+  axisY: [{
+    title: "Power",
+		suffix: "W",
+		includeZero: false
+	},
+  {
+    title: "Price",
+    suffix: "$/kWh",
+    includeZero: false
+  }],
+	toolTip: {
+		shared: true
+	},
+	legend: {
+		cursor: "pointer",
+		fontColor: "dimGrey"
+	},
+	data: data_aggr_timeseries_chart
+};
+
+$("#aggregated_chart").CanvasJSChart(options_aggr);
+</script>
+
+<script type="text/javascript">
+// Socket logic
+
+var ws = 0;
+console.log('nb_sb = '+nb_sb)
+console.log('nb_der = '+nb_der)
+console.log('nb_mgm = '+nb_mgm)
+
+$(document).ready(function () {
+
+  // Open the websocket for client-server communication
+  console.log('Websocket open: ');
+  ws = io.connect('http://localhost:8080');
+
+  ws.onopen = function (event) {
+    console.log('Connection is open ...');
+    ws.send("ready");
+  };
+
+  ws.onerror = function (err) {
+    console.log('Websocket error: ', err);
+  }
+
+  ws.onclose = function() {
+    console.log("Connection is closed...");
+  }
+
+  ws.on('simu_start_info', function(event) {
+    console.log('Websocket receives SB info: ' + event);
+    process_sg_entity_info(event);
+  });
+
+  ws.on('entity_rt_value', function(event) {
+    console.log('Websocket receives R-T value: ' + event);
+    process_entity_rt_value(event);
+  });
+
+  ws.on('forecast_data', function(event) {
+    console.log('Websocket receives Planning data: ' + event);
+    process_forecast_data(event);
+  });
+
+});
+
+var process_sg_entity_info = function(msg) {
+  var obj = JSON.parse(msg);
+  sb_list = obj.sb_connected;
+  der_list = obj.der_connected;
+  mgm_list = obj.mgm_connected;
+
+  txt = "*** Simulation entities status *** <br/>"
+  txt += "----| "+sb_list.length+"/"+nb_sb+" SB connected for the simulation <br/>";
+  txt += "----| "+der_list.length+"/"+nb_der+" RES connected for the simulation <br/>";
+  txt += "----| "+mgm_list.length+"/"+nb_mgm+" MGM connected for the simulation <br/>";
+
+  $("#sg_entities_connexion").html(""+txt+"");
+
+  if (sb_list.length+der_list.length+mgm_list.length > 0 ) {
+    $("#sg_entities_connexion").css('color', '#CCCCCC');
+  }
+  if (sb_list.length >= nb_sb && der_list.length >= nb_der && mgm_list.length >= nb_mgm ) {
+    $("#sg_entities_connexion").css('color', '#00CC00');
+    $("#start_simu").removeAttr('disabled');
+    $("#stop_simu").attr("disabled","disabled");
+  }
+}
+
+var acc_rt = {"der": 0, "sb": 0};  // Accumulate rt_value to print
+
+var process_entity_rt_value = function(msg) {
+  var obj = JSON.parse(msg);
+  var ent_id = obj.id;
+  var timestamp = starting_timestamp + obj.timestamp*1000;
+  var value = obj.value;
+  var type_value = obj.type_data;
+  var type_entity = obj.ent_type;
+
+  if (value != undefined) {
+
+    var indiv_data_array = dataSeries_rt_data[type_entity][ent_id];
+
+    // RT aggr and individual
+    console.log("timestamp RT: " + timestamp);
+
+    var next_point = {
+  		x: timestamp,
+  		y: value
+  	};
+
+    var aggr_array = dataSeries_agg_data[type_entity+"_rt"];
+
+    if (indiv_data_array.length > 0) {
+      if (aggr_array.length == 0 || indiv_data_array[indiv_data_array.length-1].x > aggr_array[aggr_array.length-1].x) {
+        aggr_array.push({x: indiv_data_array[indiv_data_array.length-1].x, y: acc_rt[type_entity]});
+        acc_rt[type_entity] = 0;
+      }
+    }
+
+    acc_rt[type_entity] += value;
+    $("#aggregated_chart").CanvasJSChart().render
+
+    if (nb_sb < 4) {
+      indiv_data_array.push(next_point);
+      $("#rt_power_chart").CanvasJSChart().render();
+    }
+  }
+
+  txt = "["+timestamp+"] "+type_entity+" #"+ent_id+" has "+type_value+" = " + value;
+  $("#main_log").append(txt+"<br />");
+}
+
+var acc_pp = {"der": [], "sb": []};  // Accumulate pp_value to print
+
+var process_forecast_data = function(msg) {
+  var obj = JSON.parse(msg);
+  var ent_id = obj.id;
+  var starting_time_forecast = starting_timestamp + (obj.timestamp - obj.timestamp%(24*3600))*1000;  // The timestamp of the day @ 00:00
+  var data = obj.data;
+  var type_data = obj.type_data;
+  var type_entity = obj.ent_type;
+
+  if (data != undefined) {
+    timestamps = data.timestamps;
+    forecast_data = data.forecast_data;
+    console.log("timestamps PP: " + timestamps);
+    console.log("forecast PP: " + forecast_data);
+
+    if (forecast_data != null) {
+
+      var indiv_array = dataSeries_pp_data[type_entity][ent_id];
+      var aggr_array = dataSeries_agg_data[type_entity+"_pp"];
+
+      // For each point of the prediction
+      for(var i=0 ; i < timestamps.length ; i++) {
+        var timestamp_i = (starting_time_forecast+timestamps[i]*1000);
+
+        pp_new_point = {
+          x: timestamp_i,
+          y: forecast_data[i]
+        };
+
+        if (indiv_array.length >= timestamps.length && timestamp_i <= indiv_array[indiv_array.length-1].x) {
+
+          // Update individual array
+          indiv_array[indiv_array.length-timestamps.length+i].y = forecast_data[i];
+
+        } else {
+          indiv_array.push(pp_new_point);
+        }
+
+        console.log("indiv_array "+i+": " + indiv_array[i].x);
+
+      }
+
+      // Update the aggregation: check all the timestamps all the same entities
+      for(var i=0 ; i < timestamps.length ; i++) {
+        var timestamp_i = (starting_time_forecast+timestamps[i]*1000);
+        var sum_i = 0;
+
+        // Create the sum
+        Object.keys(dataSeries_pp_data[type_entity]).forEach(function(entity_id) {
+          var array_ent = dataSeries_pp_data[type_entity][entity_id];
+          if (array_ent.length >= timestamps.length) {
+            if (array_ent[array_ent.length-timestamps.length+i].x >= timestamp_i) { // Use it in the sum
+              sum_i += array_ent[array_ent.length-timestamps.length+i].y;
+            }
+          }
+        });
+
+        // Update the aggregate or push a new value
+        if(aggr_array.length >= timestamps.length && aggr_array[aggr_array.length-timestamps.length+i].x >= timestamp_i) {
+          aggr_array[aggr_array.length-timestamps.length+i].y = sum_i
+        } else { // new value
+          aggr_array.push({x: timestamp_i, y: sum_i});
+        }
+      }
+
+      $("#day_ahead_chart").CanvasJSChart().render();
+      $("#aggregated_chart").CanvasJSChart().render();
+    }
+  }
+
+
+  txt = "["+starting_time_forecast+"] "+type_entity+" #"+ent_id+" has "+type_data+" = " + data;
+  $("#main_log").append(txt+"<br />");
+}
+
+$('#start_simu').click(function () {
+  ws.emit('message', 'START');
+  $("#start_simu").attr("disabled","disabled");
+  $("#stop_simu").removeAttr('disabled');
+
+  // Init the graphs
+  init_data_charts();
+})
+
+$('#stop_simu').click(function () {
+  ws.emit('message', 'STOP');
+  $("#start_simu").removeAttr('disabled');
+  $("#stop_simu").attr("disabled","disabled");
+  $("#main_log").text("");
+  $("#sb_connexion").text(txt_connection_off);
+  $("#sb_connexion").css('color', 'red');
+})
+
+</script>
+
+</body>

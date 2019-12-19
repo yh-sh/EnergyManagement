@@ -1,0 +1,20 @@
+{
+    "name": "blockchain-dr-simulation",
+    "version": "0.1.0",
+    "main": "./app-nodejs/app.js",
+    "dependencies": {
+        "bignumber.js": "^7.2.1",
+        "concurrently": "^4.1.0",
+        "csv-writer": "^1.2.0",
+        "ejs": "^2.1.4",
+        "express": "^4.11.0",
+        "shuffle-array": "^1.0.1",
+        "socket.io": "^2.0.4",
+        "sudo-js": "^1.0.2",
+        "web3": "github:ethereum/web3.js",
+        "zeromq": "^4.6.0"
+    },
+    "scripts": {
+        "start": "concurrently \"node app.js\" \"python ./entities/simu_process.py\""
+    }
+}

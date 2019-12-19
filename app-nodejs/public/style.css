@@ -1,0 +1,18 @@
+.log {
+  padding: 5px;
+  border: 1px solid black;
+  width: 50%;
+  margin: 10px;
+}
+
+.griddata_chart {
+  margin: auto;
+  align: center;
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+.smaller_chart {
+  height: 370px;
+  width: 45%;
+}
