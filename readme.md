@@ -6,7 +6,7 @@
 
 1. Download the git project:
 
-`git clone https://gitlab.com/olivancu/blockchain-dr-microgrid.git`
+`git clone https://github.com/WangChuan157/EnergyManagement.git`
 
 2. Install the NodeJS dependency:
 
