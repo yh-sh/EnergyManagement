@@ -1,7 +1,7 @@
 # Source
 
 This repo is downloaded from gitlab [repo](https://gitlab.com/olivancu/blockchain-dr-microgrid)
-and associated with the paper **Cooperative energy management of a community of smart-buildings: A T Blockchain approach**
+and associated with the paper **Cooperative energy management of a community of smart-buildings: A Blockchain approach**
 
 
 # ELAB blockchain-based decentralized energy management in a smart-buildings community simulation project
