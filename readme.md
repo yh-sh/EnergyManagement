@@ -16,7 +16,7 @@ and associated with the paper **Cooperative energy management of a community of 
 
 or
 
-`git clone https://github.com/WangChuan157/EnergyManagement.git`
+`git clone https://github.com/yh-sh/EnergyManagement.git`
 
 2. Install the NodeJS dependency:
 
